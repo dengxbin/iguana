@@ -58,6 +58,34 @@ inline constexpr std::string_view json0 = R"(
 }
 )";
 
+std::string read_json(const std::string &filename) {
+  std::error_code ec;
+  uint64_t size = std::filesystem::file_size(filename, ec);
+  if (ec) {
+    throw std::runtime_error("file size error " + ec.message());
+  }
+
+  if (size == 0) {
+    throw std::runtime_error("empty file");
+  }
+  std::ifstream file(filename, std::ios::binary);
+  std::string content;
+  content.resize(size);
+
+  file.read(content.data(), size);
+  return content;
+}
+
+const auto cur_file_path =
+    std::filesystem::path(__FILE__).parent_path().string();
+
+std::string json_numbers = read_json(cur_file_path + "/../data/numbers.json");
+std::vector<double> create_numbers_obj() {
+  std::vector<double> numbers;
+  iguana::from_json(numbers, std::begin(json_numbers), std::end(json_numbers));
+  return numbers;
+}
+
 struct fixed_name_object_t {
   std::string name0{};
   std::string name1{};
@@ -251,6 +279,74 @@ void test_to_json() {
 #endif
 }
 
+void test_from_json_numbers() {
+  std::vector<double> numbers;
+  iguana::from_json(numbers, std::begin(json_numbers), std::end(json_numbers));
+
+  {
+    ScopedTimer timer("iguana    parse numbers json");
+    for (int i = 0; i < iterations; ++i) {
+      iguana::from_json(numbers, std::begin(json_numbers),
+                        std::end(json_numbers));
+    }
+  }
+
+#ifdef HAS_RAPIDJSON
+  rapidjson::Document doc;
+  doc.Parse(json_numbers.data(), json_numbers.size());
+
+  {
+    ScopedTimer timer("rapidjson parse numbers json");
+    for (int i = 0; i < iterations; ++i) {
+      doc = {};
+      doc.Parse(json_numbers.data(), json_numbers.size());
+    }
+  }
+#endif
+}
+
+void test_to_json_numbers() {
+  const auto obj = create_numbers_obj();
+
+  iguana::string_stream ss;
+  iguana::to_json(obj, ss);
+
+  {
+    ScopedTimer timer("iguana    numbers objs to  json");
+    for (int i = 0; i < iterations; ++i) {
+      ss.clear();
+      iguana::to_json(obj, ss);
+    }
+  }
+
+#ifdef HAS_RAPIDJSON
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
+  writer.StartObject();
+  writer.StartArray();
+  for (auto &num : obj) {
+    writer.Double(num);
+  }
+  writer.EndArray();
+  writer.EndObject();
+
+  {
+    ScopedTimer timer("rapidjson  numbers objs to json");
+    for (int i = 0; i < iterations; ++i) {
+      sb.Clear();
+      writer.Reset(sb);
+      writer.StartObject();
+      writer.StartArray();
+      for (auto &num : obj) {
+        writer.Double(num);
+      }
+      writer.EndArray();
+      writer.EndObject();
+    }
+  }
+#endif
+}
+
 int main() {
   for (int i = 0; i < 10; ++i) {
     test_to_json();
@@ -259,6 +355,15 @@ int main() {
 
   for (int i = 0; i < 10; ++i) {
     test_from_json();
+    std::cout << "====================\n";
+  }
+
+  for (int i = 0; i < 10; ++i) {
+    test_from_json_numbers();
+    std::cout << "====================\n";
+  }
+  for (int i = 0; i < 10; ++i) {
+    test_to_json_numbers();
     std::cout << "====================\n";
   }
 }
