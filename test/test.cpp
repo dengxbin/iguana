@@ -186,6 +186,19 @@ TEST_CASE("test dom parse") {
     CHECK(std::get<double>(arr[1]) == 2);
     CHECK(std::get<double>(arr[2]) == 3);
   }
+  {
+    std::string json_str = R"([])";
+    iguana::json_value val1;
+    iguana::parse(val1, json_str.begin(), json_str.end());
+    auto& arr = std::get<iguana::jarray>(val1);
+    CHECK(arr.size() == 0);
+  }
+  {
+    std::string json_str = R"()";
+    iguana::json_value val1;
+    iguana::parse(val1, json_str.begin(), json_str.end());
+    CHECK(val1.index() == 0);
+  }
 }
 
 TEST_CASE("test simple object") {
